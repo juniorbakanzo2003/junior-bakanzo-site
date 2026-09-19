@@ -1,3 +1,4 @@
+```javascript
 require("dotenv").config();
 
 const express = require("express");
@@ -7,7 +8,10 @@ const { Resend } = require("resend");
 const db = require("./database");
 
 const app = express();
-const PORT = 3000;
+
+// Render fournit automatiquement le port.
+// En local, le serveur utilisera 3000.
+const PORT = process.env.PORT || 3000;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -26,7 +30,7 @@ app.use(
         saveUninitialized: false,
         cookie: {
             httpOnly: true,
-            secure: false,
+            secure: process.env.NODE_ENV === "production",
             maxAge: 1000 * 60 * 60 * 4
         }
     })
@@ -37,9 +41,11 @@ app.use(
 // PAGE PUBLIQUE
 // ========================================
 
-app.use(express.static(__dirname, {
-    index: false
-}));
+app.use(
+    express.static(__dirname, {
+        index: false
+    })
+);
 
 
 // ========================================
@@ -400,7 +406,7 @@ app.get("/", (req, res) => {
 // SERVEUR
 // ========================================
 
-app.listen(PORT, () => {
+app.listen(PORT, "0.0.0.0", () => {
 
     console.log("");
     console.log(
@@ -416,7 +422,7 @@ app.listen(PORT, () => {
     );
 
     console.log(
-        `🌐 http://localhost:${PORT}`
+        `🌐 Serveur lancé sur le port ${PORT}`
     );
 
     console.log(
@@ -426,3 +432,4 @@ app.listen(PORT, () => {
     console.log("");
 
 });
+```
