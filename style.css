@@ -1,0 +1,135 @@
+body {
+    margin: 0;
+    background-color: #071a33;
+    color: white;
+    font-family: Arial, sans-serif;
+    text-align: center;
+}
+
+
+/* BARRE DE NAVIGATION */
+
+nav {
+    background-color: #ffffff;
+    padding: 15px 40px;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+
+/* LOGO */
+
+.logo {
+    background-color: #071a33;
+    color: #4da6ff;
+
+    font-size: 22px;
+    font-weight: bold;
+
+    padding: 10px 14px;
+    border-radius: 8px;
+}
+
+
+/* MENU */
+
+.menu {
+    display: flex;
+    gap: 30px;
+}
+
+.menu a {
+    color: #071a33;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.menu a:hover {
+    color: #4da6ff;
+}
+
+
+/* TITRE */
+
+h1 {
+    color: #4da6ff;
+    font-size: 50px;
+    margin-top: 120px;
+}
+
+p {
+    font-size: 20px;
+}
+/* PAGE D'ACCUEIL */
+
+.hero {
+    min-height: 80vh;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+
+    padding: 40px 20px;
+}
+
+.welcome {
+    color: #80c7ff;
+    font-size: 14px;
+    letter-spacing: 4px;
+    font-weight: bold;
+}
+
+.hero h1 {
+    font-size: 70px;
+    margin: 15px 0;
+}
+
+.hero h2 {
+    font-size: 24px;
+    font-weight: normal;
+    margin-bottom: 20px;
+}
+
+.intro {
+    max-width: 650px;
+    line-height: 1.7;
+    font-size: 18px;
+}
+
+
+/* BOUTONS */
+
+.buttons {
+    display: flex;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.btn {
+    padding: 14px 25px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+.primary {
+    background-color: #4da6ff;
+    color: white;
+}
+
+.secondary {
+    border: 1px solid white;
+    color: white;
+}
+
+.primary:hover {
+    background-color: #80c7ff;
+}
+
+.secondary:hover {
+    background-color: white;
+    color: #071a33;
+}
