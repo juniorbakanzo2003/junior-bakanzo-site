@@ -1,170 +1,123 @@
-```javascript
 require("dotenv").config();
 
 const express = require("express");
-const path = require("path");
 const session = require("express-session");
-const { Resend } = require("resend");
+const path = require("path");
 const db = require("./database");
+const { Resend } = require("resend");
 
 const app = express();
 
-// Render fournit automatiquement le port.
-// En local, le serveur utilisera 3000.
 const PORT = process.env.PORT || 3000;
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-
-// ========================================
-// CONFIGURATION
-// ========================================
-
+// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(
     session({
-        secret: process.env.SESSION_SECRET || "change-this-secret",
+        secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: false,
         cookie: {
-            httpOnly: true,
             secure: process.env.NODE_ENV === "production",
-            maxAge: 1000 * 60 * 60 * 4
+            httpOnly: true,
+            maxAge: 1000 * 60 * 60 * 24
         }
     })
 );
 
+// Fichiers publics
+app.use(express.static(path.join(__dirname)));
 
-// ========================================
-// PAGE PUBLIQUE
-// ========================================
+// ==============================
+// PAGE PRINCIPALE
+// ==============================
 
-app.use(
-    express.static(__dirname, {
-        index: false
-    })
-);
+app.get("/", (req, res) => {
+    res.sendFile(path.join(__dirname, "index.html"));
+});
 
-
-// ========================================
+// ==============================
 // CONNEXION ADMIN
-// ========================================
+// ==============================
 
 app.post("/api/login", (req, res) => {
-
     const { username, password } = req.body;
 
     if (
         username === process.env.ADMIN_USERNAME &&
         password === process.env.ADMIN_PASSWORD
     ) {
-
-        req.session.isAdmin = true;
+        req.session.admin = true;
 
         return res.json({
             success: true
         });
-
     }
 
     res.status(401).json({
         success: false,
-        message: "Identifiant ou mot de passe incorrect."
+        message: "Identifiants incorrects."
     });
-
 });
 
+// ==============================
+// VÉRIFICATION SESSION ADMIN
+// ==============================
 
-// ========================================
-// VÉRIFIER LA SESSION ADMIN
-// ========================================
-
-app.get("/api/admin/check", (req, res) => {
-
-    if (req.session.isAdmin) {
-
-        return res.json({
-            authenticated: true
-        });
-
-    }
-
-    res.status(401).json({
-        authenticated: false
+app.get("/api/check-session", (req, res) => {
+    res.json({
+        loggedIn: !!req.session.admin
     });
-
 });
 
+// ==============================
+// PAGE ADMIN PROTÉGÉE
+// ==============================
 
-// ========================================
-// PROTÉGER ADMIN.HTML
-// ========================================
-
-app.get("/admin.html", (req, res) => {
-
-    if (!req.session.isAdmin) {
-
+app.get("/admin", (req, res) => {
+    if (!req.session.admin) {
         return res.redirect("/login.html");
-
     }
 
-    res.sendFile(
-        path.join(__dirname, "admin.html")
-    );
-
+    res.sendFile(path.join(__dirname, "admin.html"));
 });
 
-
-// ========================================
+// ==============================
 // DÉCONNEXION
-// ========================================
+// ==============================
 
-app.post("/api/logout", (req, res) => {
-
-    req.session.destroy(() => {
+app.get("/api/logout", (req, res) => {
+    req.session.destroy((err) => {
+        if (err) {
+            return res.status(500).json({
+                success: false,
+                message: "Erreur lors de la déconnexion."
+            });
+        }
 
         res.json({
             success: true
         });
-
     });
-
 });
 
-
-// ========================================
-// ENREGISTRER UNE INSCRIPTION
-// ========================================
+// ==============================
+// INSCRIPTION À UNE ACTIVITÉ
+// ==============================
 
 app.post("/api/inscriptions", (req, res) => {
+    const { name, email, phone, activity } = req.body;
 
-    const {
-        name,
-        email,
-        phone,
-        activity
-    } = req.body;
-
-    if (
-        !name ||
-        !email ||
-        !phone ||
-        !activity
-    ) {
-
+    if (!name || !email || !phone || !activity) {
         return res.status(400).json({
-
             success: false,
-
-            message:
-                "Tous les champs sont obligatoires."
-
+            message: "Veuillez remplir tous les champs."
         });
-
     }
-
 
     const sql = `
         INSERT INTO inscriptions
@@ -172,264 +125,104 @@ app.post("/api/inscriptions", (req, res) => {
         VALUES (?, ?, ?, ?)
     `;
 
-
     db.run(
         sql,
-        [
-            name,
-            email,
-            phone,
-            activity
-        ],
+        [name, email, phone, activity],
         async function (err) {
-
             if (err) {
-
-                console.error(
-                    "❌ ERREUR SQLite :",
-                    err.message
-                );
+                console.error("Erreur SQLite :", err);
 
                 return res.status(500).json({
-
                     success: false,
-
-                    message:
-                        "Erreur lors de l'enregistrement."
-
+                    message: "Erreur lors de l'enregistrement."
                 });
-
             }
 
+            console.log("✅ Nouvelle inscription :", this.lastID);
 
-            console.log(
-                "✅ Inscription enregistrée. ID :",
-                this.lastID
-            );
-
-
-            // ========================================
-            // EMAIL RESEND
-            // ========================================
-
+            // Envoi de l'e-mail
             try {
-
-                const {
-                    data,
-                    error
-                } = await resend.emails.send({
-
-                    from:
-                        "onboarding@resend.dev",
-
-                    to:
-                        "juniorbakanzo7@gmail.com",
-
-                    subject:
-                        "🔔 Nouvelle inscription - Junior Bakanzo",
-
+                await resend.emails.send({
+                    from: "onboarding@resend.dev",
+                    to: process.env.NOTIFICATION_EMAIL || "juniorbakanzo7@gmail.com",
+                    subject: "Nouvelle inscription - Junior Bakanzo",
                     html: `
+                        <h2>Nouvelle inscription</h2>
 
-                        <div
-                            style="
-                                font-family: Arial, sans-serif;
-                                max-width: 600px;
-                                margin: auto;
-                            "
-                        >
+                        <p><strong>Nom :</strong> ${name}</p>
+                        <p><strong>Email :</strong> ${email}</p>
+                        <p><strong>Téléphone :</strong> ${phone}</p>
+                        <p><strong>Activité :</strong> ${activity}</p>
 
-                            <h2
-                                style="
-                                    color: #071a33;
-                                "
-                            >
-                                Nouvelle inscription
-                            </h2>
-
-                            <p>
-                                Une nouvelle personne vient
-                                de s'inscrire à une activité.
-                            </p>
-
-                            <hr>
-
-                            <p>
-                                <strong>Nom :</strong>
-                                ${name}
-                            </p>
-
-                            <p>
-                                <strong>E-mail :</strong>
-                                ${email}
-                            </p>
-
-                            <p>
-                                <strong>Téléphone :</strong>
-                                ${phone}
-                            </p>
-
-                            <p>
-                                <strong>Activité :</strong>
-                                ${activity}
-                            </p>
-
-                            <hr>
-
-                            <p>
-                                Inscription enregistrée
-                                dans la base de données.
-                            </p>
-
-                        </div>
-
+                        <p>
+                            Une nouvelle personne vient de s'inscrire
+                            depuis votre site personnel.
+                        </p>
                     `
-
                 });
 
-
-                if (error) {
-
-                    console.error(
-                        "❌ ERREUR RESEND :",
-                        error
-                    );
-
-                } else {
-
-                    console.log(
-                        "📧 E-MAIL ENVOYÉ :",
-                        data
-                    );
-
-                }
-
+                console.log("📧 Notification envoyée.");
             } catch (emailError) {
-
                 console.error(
-                    "❌ ERREUR E-MAIL :",
+                    "Erreur lors de l'envoi de l'e-mail :",
                     emailError
                 );
-
             }
-
 
             res.json({
-
                 success: true,
-
-                message:
-                    "Inscription enregistrée avec succès !",
-
-                id:
-                    this.lastID
-
+                message: "Inscription enregistrée avec succès."
             });
-
         }
     );
-
 });
 
-
-// ========================================
+// ==============================
 // RÉCUPÉRER LES INSCRIPTIONS
-// ========================================
+// ADMIN UNIQUEMENT
+// ==============================
 
 app.get("/api/inscriptions", (req, res) => {
-
-    if (!req.session.isAdmin) {
-
+    if (!req.session.admin) {
         return res.status(401).json({
-
             success: false,
-
-            message:
-                "Accès non autorisé."
-
+            message: "Accès non autorisé."
         });
-
     }
 
-
     const sql = `
-        SELECT *
+        SELECT
+            id,
+            nom,
+            email,
+            telephone,
+            activite,
+            date_inscription
         FROM inscriptions
-        ORDER BY id DESC
+        ORDER BY date_inscription DESC
     `;
 
+    db.all(sql, [], (err, rows) => {
+        if (err) {
+            console.error("Erreur SQLite :", err);
 
-    db.all(
-        sql,
-        [],
-        (err, rows) => {
-
-            if (err) {
-
-                console.error(
-                    "❌ ERREUR récupération :",
-                    err.message
-                );
-
-                return res.status(500).json({
-
-                    success: false,
-
-                    message:
-                        "Impossible de récupérer les inscriptions."
-
-                });
-
-            }
-
-            res.json(rows);
-
+            return res.status(500).json({
+                success: false,
+                message: "Erreur lors de la récupération des inscriptions."
+            });
         }
-    );
 
+        res.json({
+            success: true,
+            inscriptions: rows
+        });
+    });
 });
 
-
-// ========================================
-// PAGE D'ACCUEIL
-// ========================================
-
-app.get("/", (req, res) => {
-
-    res.sendFile(
-        path.join(__dirname, "index.html")
-    );
-
-});
-
-
-// ========================================
-// SERVEUR
-// ========================================
+// ==============================
+// DÉMARRAGE DU SERVEUR
+// ==============================
 
 app.listen(PORT, "0.0.0.0", () => {
-
-    console.log("");
-    console.log(
-        "================================"
-    );
-
-    console.log(
-        "🚀 SERVEUR JUNIOR BAKANZO"
-    );
-
-    console.log(
-        "================================"
-    );
-
-    console.log(
-        `🌐 Serveur lancé sur le port ${PORT}`
-    );
-
-    console.log(
-        "================================"
-    );
-
-    console.log("");
-
+    console.log(`🚀 Serveur démarré sur le port ${PORT}`);
 });
-```
